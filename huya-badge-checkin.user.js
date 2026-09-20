@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         虎牙粉丝徽章批量打卡
 // @namespace    local.huya.badge-checkin
-// @version      2.0.2
+// @version      2.0.3
 // @description  在 518518 直播间读取徽章列表，并使用主播 UID 直接调用虎牙签到服务。
 // @author       local
 // @match        https://www.huya.com/*
@@ -20,7 +20,7 @@
     var STORE_KEY = 'huya_badge_checkin_job_v4';
     var ENTRY_ROOM_URL = 'https://www.huya.com/518518';
     var ENTRY_ROOM_PATH = '/518518';
-    var SCRIPT_VERSION = '2.0.2';
+    var SCRIPT_VERSION = '2.0.3';
     var MAX_RETRY = 1;
     var WUP_TIMEOUT = 12000;
     var collecting = false;
@@ -92,12 +92,28 @@
         }
     }
 
+    function currentDateKey() {
+        // 虎牙按北京时间计算每日状态；中国标准时间没有夏令时。
+        return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    }
+
     function getJob() {
         var job = GM_getValue(STORE_KEY, null);
-        return job && Array.isArray(job.items) ? job : null;
+        if (!job || !Array.isArray(job.items)) return null;
+
+        var today = currentDateKey();
+        if (job.dateKey !== today) {
+            GM_deleteValue(STORE_KEY);
+            panelMessage = job.dateKey
+                ? '已自动清除 ' + job.dateKey + ' 的打卡记录'
+                : '已自动清除没有日期的旧版打卡记录';
+            return null;
+        }
+        return job;
     }
 
     function saveJob(job) {
+        if (!job.dateKey) job.dateKey = currentDateKey();
         job.updatedAt = Date.now();
         GM_setValue(STORE_KEY, job);
     }
@@ -560,6 +576,7 @@
 
         var job = {
             id: newId(),
+            dateKey: currentDateKey(),
             createdAt: Date.now(),
             updatedAt: Date.now(),
             paused: false,
